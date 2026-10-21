@@ -11,6 +11,7 @@ on:
       - "CMakeLists.txt"
       - "CMakePresets.json"
       - "recvx_manifest.toml"
+      - "recvx_app.h"
 
 permissions:
   contents: read
