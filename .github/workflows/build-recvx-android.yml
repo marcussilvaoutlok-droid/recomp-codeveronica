@@ -2,6 +2,19 @@ name: Build Resident Evil Code Veronica X (Android ARM64 native)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - ci/build-from-private-xex-release
+    paths:
+      - ".github/workflows/build-recvx-android.yml"
+      - "build.sh"
+      - "scripts/**"
+      - "src/**"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "generated/**"
+      - "recvx_manifest.toml"
+      - "recvx_app.h"
   pull_request:
     paths:
       - ".github/workflows/build-recvx-android.yml"
