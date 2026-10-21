@@ -36,7 +36,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential g++-13 libstdc++-13-dev autoconf clang-18 lld-18 cmake ninja-build git \
+            build-essential autoconf clang-18 lld-18 libc++-18-dev libc++abi-18-dev cmake ninja-build git \
             python3 python3-pip python3-venv pkg-config curl jq unzip \
             libvulkan-dev libx11-dev libx11-xcb-dev libxcb1-dev \
             libwayland-dev libxkbcommon-dev libdecor-0-dev \
@@ -47,7 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           printf '#include <expected>\nint main() { std::expected<int, int> v = 1; return v.value() - 1; }\n' |
-            clang++-18 --gcc-toolchain=/usr -std=c++23 -x c++ -fsyntax-only -
+            clang++-18 -stdlib=libc++ -std=c++23 -x c++ -fsyntax-only -
           echo "C++23 std::expected is available."
 
       - name: Download private XEX release asset
@@ -70,7 +70,7 @@ jobs:
         run: python3 scripts/inspect-xex.py game/Default.xex
 
       - name: Build Linux host target
-        run: CXXFLAGS="--gcc-toolchain=/usr" bash build.sh --jobs 2
+        run: CXXFLAGS="-stdlib=libc++" bash build.sh --jobs 2
 
       - name: Upload host build output and logs
         if: always()
