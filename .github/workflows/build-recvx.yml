@@ -34,9 +34,14 @@ jobs:
 
       - name: Install build dependencies
         run: |
+          set -euo pipefail
           sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget ca-certificates
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
           sudo apt-get install -y --no-install-recommends \
-            build-essential autoconf clang-18 lld-18 libc++-18-dev libc++abi-18-dev cmake ninja-build git \
+            build-essential autoconf clang-21 lld-21 libc++-21-dev libc++abi-21-dev cmake ninja-build git \
             python3 python3-pip python3-venv pkg-config curl jq unzip \
             libvulkan-dev libx11-dev libx11-xcb-dev libxcb1-dev \
             libwayland-dev libxkbcommon-dev libdecor-0-dev \
@@ -46,9 +51,9 @@ jobs:
       - name: Verify C++23 standard library support
         run: |
           set -euo pipefail
-          printf '#include <expected>\nint main() { std::expected<int, int> v = 1; return v.value() - 1; }\n' |
-            clang++-18 -stdlib=libc++ -std=c++23 -x c++ -fsyntax-only -
-          echo "C++23 std::expected is available."
+          printf '#include <expected>\n#include <thread>\n#include <stop_token>\nint main() { std::expected<int, int> v = 1; std::jthread t([](std::stop_token) {}); return v.value() - 1; }\n' |
+            clang++-21 -stdlib=libc++ -std=c++23 -x c++ -fsyntax-only -
+          echo "C++23 and C++20 threading support are available."
 
       - name: Download private XEX release asset
         run: |
