@@ -102,17 +102,32 @@ jobs:
       - name: Keep code generation on the Linux host executable
         run: |
           set -euo pipefail
-          HOST_REXGLUE="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/install/linux-amd64/bin/rexglue"
-          test -x "$HOST_REXGLUE"
+          SDK_REXGLUE="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/install/linux-amd64/bin/rexglue"
+          test -x "$SDK_REXGLUE"
+          "$SDK_REXGLUE" --version
+
+          # Preserve a host executable outside the SDK build tree. The Android
+          # cross-build must never try to execute an ARM64 rexglue binary on x86_64.
+          HOST_REXGLUE="$RUNNER_TEMP/rexglue-host"
+          cp "$SDK_REXGLUE" "$HOST_REXGLUE"
+          chmod +x "$HOST_REXGLUE"
+          file "$HOST_REXGLUE"
           "$HOST_REXGLUE" --version
+
           python3 - "$HOST_REXGLUE" <<'PY'
           from pathlib import Path
           import sys
 
           host = sys.argv[1]
           build = Path("out/build/android-arm64-release")
-          old = str(Path(".deps/rexglue-sdk/out/linux-arm64/rexglue").resolve())
-          old_alt = str(Path(".deps/rexglue-sdk/out/linux-arm64/Release/rexglue").resolve())
+          old_paths = [
+              Path(".deps/rexglue-sdk/out/install/linux-amd64/bin/rexglue").resolve(),
+              Path(".deps/rexglue-sdk/out/linux-amd64/rexglue").resolve(),
+              Path(".deps/rexglue-sdk/out/linux-amd64/Release/rexglue").resolve(),
+              Path(".deps/rexglue-sdk/out/linux-arm64/rexglue").resolve(),
+              Path(".deps/rexglue-sdk/out/linux-arm64/Release/rexglue").resolve(),
+          ]
+          old_paths = [str(path) for path in old_paths]
           changed = []
           for path in build.rglob("*"):
               if not path.is_file() or path.suffix not in {".ninja", ".make", ".cmake", ".txt"}:
@@ -121,14 +136,17 @@ jobs:
                   text = path.read_text()
               except (UnicodeDecodeError, OSError):
                   continue
-              updated = text.replace(old, host).replace(old_alt, host)
+              updated = text
+              for old in old_paths:
+                  updated = updated.replace(old, host)
               if updated != text:
                   path.write_text(updated)
                   changed.append(str(path))
           if not changed:
-              raise SystemExit("No Android build rule referenced the cross-compiled rexglue codegen tool")
+              raise SystemExit("No Android build rule referenced a known rexglue executable path")
           print("Patched host codegen executable in:", ", ".join(changed))
           PY
+          grep -R -n -F "$HOST_REXGLUE" out/build/android-arm64-release --include='build.ninja' --include='*.ninja' || true
 
       - name: Build Resident Evil Android ARM64 native library
         run: |
