@@ -86,6 +86,37 @@ jobs:
             -DREXSDK_DIR="$GITHUB_WORKSPACE/.deps/rexglue-sdk" \
             -DREXGLUE_RECOMP_DEBUG_INFO=none
 
+      - name: Keep code generation on the Linux host executable
+        run: |
+          set -euo pipefail
+          HOST_REXGLUE="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/install/linux-amd64/bin/rexglue"
+          test -x "$HOST_REXGLUE"
+          "$HOST_REXGLUE" --version
+          python3 - "$HOST_REXGLUE" <<'PY'
+          from pathlib import Path
+          import sys
+
+          host = sys.argv[1]
+          build = Path("out/build/android-arm64-release")
+          old = str(Path(".deps/rexglue-sdk/out/linux-arm64/rexglue").resolve())
+          old_alt = str(Path(".deps/rexglue-sdk/out/linux-arm64/Release/rexglue").resolve())
+          changed = []
+          for path in build.rglob("*"):
+              if not path.is_file() or path.suffix not in {".ninja", ".make", ".cmake", ".txt"}:
+                  continue
+              try:
+                  text = path.read_text()
+              except (UnicodeDecodeError, OSError):
+                  continue
+              updated = text.replace(old, host).replace(old_alt, host)
+              if updated != text:
+                  path.write_text(updated)
+                  changed.append(str(path))
+          if not changed:
+              raise SystemExit("No Android build rule referenced the cross-compiled rexglue codegen tool")
+          print("Patched host codegen executable in:", ", ".join(changed))
+          PY
+
       - name: Build Resident Evil Android ARM64 native library
         run: |
           set -euo pipefail
