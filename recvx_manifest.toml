@@ -1,0 +1,73 @@
+# Resident Evil Code: Veronica X HD (Xbox 360) - ReXGlue project manifest
+#
+# This manifest intentionally starts without title-specific function or ReXCRT
+# hints. Add addresses only after proving them against the exact supported XEX.
+
+[project]
+name = "recvx"
+sdk_version = "0.10.0"
+game_root = "game"
+
+[entrypoint]
+file_path = "game/Default.xex"
+out_directory_path = "generated/default"
+includes = []
+cr_as_local = true
+ctr_as_local = true
+xer_as_local = true
+
+# Manual function boundaries proven against the supported RECVX XEX
+# (Title ID 43430822 / Media ID 58A6EFFB). These three targets are the unique
+# destinations behind the 209 UnresolvedCall validation errors from the first
+# clean ReXGlue pass.
+#
+# 0x827E9A60: li r3, 0 ; blr. Next function starts at 0x827E9A68.
+# 0x823D1438: lwz/cmp early-return setter; final blr at 0x823D145C.
+#             Next function starts at 0x823D1460.
+# 0x8281D028: stw r4, 132(r3) ; blr. Next function starts at 0x8281D030.
+[entrypoint.functions]
+0x821DA3E8 = { size = 0x78 }
+0x823D1438 = { size = 0x28 }
+0x827E9A60 = { size = 0x8 }
+0x8281D028 = { size = 0x8 }
+0x827E94B0 = { size = 0x14 }
+0x827F4570 = { size = 0x3C }
+0x82B9AB00 = { size = 0x18 }
+0x8251F990 = { size = 0x10 }
+0x82551148 = { size = 0x8 }
+0x823BA908 = { size = 0x10 }
+0x823BA918 = { size = 0x10 }
+0x82B81558 = { size = 0x8 }
+0x82348668 = { size = 0x4 }
+
+
+# Manual correction for the first runtime bctr trap in sub_822E5280.
+# Guest PPC at 0x822E5298..0x822E52A4 is:
+#   slwi r6, r8, 2
+#   lwzx r5, r6, r7
+#   mtctr r5
+#   bctr
+# r7 is the table base (0x82CB6128), not the switch index. The actual
+# zero-based index is r8. The 120-entry table at 0x82CB6128 contains
+# 0x822E52A8 in every slot. ReXGlue auto-detected the labels correctly but
+# selected r7 as indexRegister, causing an immediate out-of-range host switch.
+[[entrypoint.switch_tables]]
+address = 0x822E52A4
+register = 8
+labels = [
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+  0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8, 0x822E52A8,
+]
