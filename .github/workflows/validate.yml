@@ -32,6 +32,25 @@ jobs:
             bash -n "${files[@]}"
           fi
 
+      - name: Check build helper references
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+
+          root = pathlib.Path(".")
+          build = (root / "build.sh").read_text(encoding="utf-8")
+          common = root / "scripts/common.sh"
+          assert common.is_file(), "build.sh requires missing scripts/common.sh"
+
+          # Extract project-local helper paths declared in readonly variables.
+          refs = re.findall(r'readonly [A-Z0-9_]+="\\$ROOT_DIR/([^"]+)"', build)
+          missing = [name for name in refs if not (root / name).is_file()]
+          if missing:
+              raise SystemExit("Missing build helpers: " + ", ".join(missing))
+          print(f"Build entrypoint helper references: OK ({len(refs)} files)")
+          PY
+
       - name: Validate project manifest
         run: |
           python3 - <<'PY'
