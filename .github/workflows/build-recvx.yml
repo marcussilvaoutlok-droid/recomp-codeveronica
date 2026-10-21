@@ -1,12 +1,68 @@
-name: Experimental RECVX host build
+name: Build Resident Evil Code Veronica X (Linux host)
+
 on:
   workflow_dispatch:
+
 permissions:
   contents: read
+
+concurrency:
+  group: recvx-host-build
+  cancel-in-progress: false
+
 jobs:
-  build:
+  host-build:
+    name: Download private XEX and build Linux host target
     runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RECVX_BUILD_JOBS: "2"
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Explain required private game file
-        run: echo 'Experimental workflow placeholder; private XEX download and build steps must be added after validating release access.'
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential autoconf clang-18 lld-18 cmake ninja-build git \
+            python3 python3-pip python3-venv pkg-config curl jq unzip \
+            libvulkan-dev libx11-dev libx11-xcb-dev libxcb1-dev \
+            libwayland-dev libxkbcommon-dev libdecor-0-dev \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev \
+            libgtk-3-dev libxss-dev
+
+      - name: Download private XEX release asset
+        run: |
+          set -euo pipefail
+          mkdir -p game
+          gh release download recvx-xex-private \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "Default.xex" \
+            --dir game
+          actual="$(sha256sum game/Default.xex | cut -d ' ' -f 1)"
+          expected="c552c6995462a5cefdd52c07bebd28fff4481164b19a445c636d7b54736f3c70"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Default.xex SHA-256 mismatch: $actual" >&2
+            exit 1
+          fi
+          echo "Private XEX downloaded and SHA-256 verified."
+
+      - name: Validate XEX metadata
+        run: python3 scripts/inspect-xex.py game/Default.xex
+
+      - name: Build Linux host target
+        run: ./build.sh --jobs 2
+
+      - name: Upload host build output and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recvx-linux-host-build
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            out/stage/linux-amd64-relwithdebinfo/**
+            logs/*.log
