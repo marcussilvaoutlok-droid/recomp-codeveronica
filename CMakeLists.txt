@@ -15,6 +15,7 @@ set(RECVX_SOURCES
 if(ANDROID)
     # Android loads native game code as a shared library; there is no desktop main().
     add_library(recvx SHARED ${RECVX_SOURCES})
+    target_compile_definitions(recvx PRIVATE REXGLUE_APP_NAME=\"recvx\")
 elseif(WIN32)
     add_executable(recvx WIN32 ${RECVX_SOURCES})
 else()
