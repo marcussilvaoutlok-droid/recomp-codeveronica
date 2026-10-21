@@ -9,8 +9,8 @@ RECVX_MANIFEST="$RECVX_ROOT/recvx_manifest.toml"
 RECVX_EXPECTED_XEX_SHA256="c552c6995462a5cefdd52c07bebd28fff4481164b19a445c636d7b54736f3c70"
 RECVX_EXPECTED_REXGLUE_VERSION="0.10.0-dev.g398e2ba"
 RECVX_REXGLUE_VERSION_PREFIX="0.10."
-RECVX_REXGLUE_COMMIT="398e2ba7802d0c4ca1f68d7ad4fa2cd73e8123eb"
-RECVX_REXGLUE_REPOSITORY="https://github.com/rexglue/rexglue-sdk.git"
+RECVX_REXGLUE_COMMIT="5dd143aa8e5ed0f4e09dd5fbdcc3e9e5365e9203"
+RECVX_REXGLUE_REPOSITORY="https://github.com/marcussilvaoutlok-droid/rexglue-sdk.git"
 
 case "$(uname -m)" in
   x86_64|amd64) RECVX_HOST_ARCH="amd64" ;;
