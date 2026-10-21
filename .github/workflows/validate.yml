@@ -1,0 +1,36 @@
+name: Validate repository
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Python scripts
+        run: python3 -m compileall -q scripts
+
+      - name: Validate shell scripts when present
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(build.sh run.sh test-boot.sh gdb.sh scripts/*.sh)
+          if (("${#files[@]}")); then
+            bash -n "${files[@]}"
+          fi
+
+      - name: Check repository safety rules
+        run: |
+          test ! -e game/Default.xex
+          if git ls-files | grep -E '(^|/)(Default\.xex|.*\.(iso|xiso|wud|wad))$'; then
+            echo "Retail game files must not be tracked." >&2
+            exit 1
+          fi
