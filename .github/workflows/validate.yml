@@ -44,7 +44,7 @@ jobs:
           assert common.is_file(), "build.sh requires missing scripts/common.sh"
 
           # Extract project-local helper paths declared in readonly variables.
-          refs = re.findall(r'readonly [A-Z0-9_]+="\\$ROOT_DIR/([^"]+)"', build)
+          refs = re.findall(r'readonly [A-Z0-9_]+="\$ROOT_DIR/([^"]+)"', build)
           refs = [name for name in refs if name.startswith("scripts/")]
           missing = [name for name in refs if not (root / name).is_file()]
           if missing:
