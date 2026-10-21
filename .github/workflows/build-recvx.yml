@@ -1,0 +1,12 @@
+name: Experimental RECVX host build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Explain required private game file
+        run: echo 'Experimental workflow placeholder; private XEX download and build steps must be added after validating release access.'
