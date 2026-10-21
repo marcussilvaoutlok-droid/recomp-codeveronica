@@ -5,17 +5,30 @@ import sys
 
 path = Path(sys.argv[1]) / "include/rex/string/numeric.h"
 text = path.read_text()
-old = text
-text = text.replace("#if REX_PLATFORM_MAC", "#if REX_PLATFORM_MAC || REX_PLATFORM_LINUX")
-if text == old:
-    if "REX_PLATFORM_MAC || REX_PLATFORM_LINUX" in text and "portable_float_from_chars(p, end, v.f32[i])" in text:
-        print("Linux portable float parser already enabled")
-        raise SystemExit(0)
-    raise SystemExit("expected platform guards not found")
-if "auto result = std::from_chars(p, end, v.f32[i], std::chars_format::general);" in text:
-    raise SystemExit("vector float parser still calls floating from_chars")
-if "auto [p, error] = std::from_chars(range.data(), range.data() + range.size(), result," in text:
-    if "#if REX_PLATFORM_MAC || REX_PLATFORM_LINUX\n    auto [p, error] = portable_float_from_chars" not in text:
-        raise SystemExit("fpfs fallback not enabled")
+
+# The SDK already provides a C-locale parser for macOS. Enable that same
+# implementation for Linux, where the runner's libc++ lacks float from_chars.
+text = text.replace(
+    "#if REX_PLATFORM_MAC",
+    "#if REX_PLATFORM_MAC || REX_PLATFORM_LINUX",
+)
+
+fpfs_guard = (
+    "#if REX_PLATFORM_MAC || REX_PLATFORM_LINUX\n"
+    "    auto [p, error] = portable_float_from_chars"
+)
+vec_guard = (
+    "#if REX_PLATFORM_MAC || REX_PLATFORM_LINUX\n"
+    "      auto result = detail::portable_float_from_chars(p, end, v.f32[i]);"
+)
+helper_guard = "#if REX_PLATFORM_MAC || REX_PLATFORM_LINUX\ntemplate <typename T>"
+
+if fpfs_guard not in text:
+    raise SystemExit("portable parser is not enabled in fpfs")
+if vec_guard not in text:
+    raise SystemExit("portable parser is not enabled in vector float parsing")
+if helper_guard not in text:
+    raise SystemExit("portable parser helper is not enabled for Linux")
+
 path.write_text(text)
-print("Enabled portable float parsing for Linux libc++")
+print("Linux portable float parsing enabled and verified")
