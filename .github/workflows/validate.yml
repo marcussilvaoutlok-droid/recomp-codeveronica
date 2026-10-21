@@ -27,10 +27,25 @@ jobs:
             bash -n "${files[@]}"
           fi
 
+      - name: Validate project manifest
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          manifest = pathlib.Path("recvx_manifest.toml")
+          data = tomllib.loads(manifest.read_text(encoding="utf-8"))
+          assert data["project"]["name"] == "recvx"
+          assert data["entrypoint"]["file_path"] == "game/Default.xex"
+          assert data["entrypoint"]["out_directory_path"] == "generated/default"
+          assert data["entrypoint"]["functions"], "Expected at least one function boundary"
+          print("Manifest TOML and required target fields: OK")
+          PY
+
       - name: Check repository safety rules
         run: |
           test ! -e game/Default.xex
-          if git ls-files | grep -E '(^|/)(Default\.xex|.*\.(iso|xiso|wud|wad))$'; then
+          if git ls-files | grep -Ei '(^|/)(Default\.xex|.*\.(iso|xiso|wud|wad))$'; then
             echo "Retail game files must not be tracked." >&2
             exit 1
           fi
