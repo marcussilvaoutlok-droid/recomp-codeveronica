@@ -63,7 +63,7 @@ jobs:
         run: python3 scripts/inspect-xex.py game/Default.xex
 
       - name: Build Linux host target
-        run: ./build.sh --jobs 2
+        run: bash build.sh --jobs 2
 
       - name: Upload host build output and logs
         if: always()
