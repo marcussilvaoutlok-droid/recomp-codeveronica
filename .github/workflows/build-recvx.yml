@@ -2,12 +2,21 @@ name: Build Resident Evil Code Veronica X (Linux host)
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/build-recvx.yml"
+      - "build.sh"
+      - "scripts/**"
+      - "src/**"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "recvx_manifest.toml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: recvx-host-build
+  group: recvx-host-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
