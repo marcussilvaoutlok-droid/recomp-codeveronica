@@ -192,7 +192,7 @@ recvx_verify_xex
   recvx_die "missing helper: $ROOT_PATCH_CLEANUP"
 
 recvx_info "cleaning obsolete generated .patch files from project root"
-recvx_run "$ROOT_PATCH_CLEANUP"
+recvx_run bash "$ROOT_PATCH_CLEANUP"
 
 mkdir -p "$ROOT_DIR/.deps"
 
