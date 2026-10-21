@@ -16,6 +16,7 @@ readonly SDK_TIMERQUEUE_HELPER="$ROOT_DIR/scripts/ensure-rexglue-timerqueue-bloc
 readonly SDK_DISRUPTOR_HELPER="$ROOT_DIR/scripts/ensure-disruptorplus-blocking-wait-fix.py"
 readonly SDK_DB16_NOOP_HELPER="$ROOT_DIR/scripts/ensure-rexglue-db16cyc-noop.py"
 readonly SDK_SWITCH_TRAP_HELPER="$ROOT_DIR/scripts/ensure-rexglue-switch-trap-context.py"
+readonly SDK_FLOAT_FROM_CHARS_HELPER="$ROOT_DIR/scripts/ensure-rexglue-float-from-chars.py"
 readonly ROOT_PATCH_CLEANUP="$ROOT_DIR/scripts/cleanup-obsolete-root-patches.sh"
 
 usage() {
@@ -188,6 +189,8 @@ recvx_verify_xex
   recvx_die "missing helper: $SDK_DB16_NOOP_HELPER"
 [[ -f "$SDK_SWITCH_TRAP_HELPER" ]] ||
   recvx_die "missing helper: $SDK_SWITCH_TRAP_HELPER"
+[[ -f "$SDK_FLOAT_FROM_CHARS_HELPER" ]] ||
+  recvx_die "missing helper: $SDK_FLOAT_FROM_CHARS_HELPER"
 [[ -f "$ROOT_PATCH_CLEANUP" ]] ||
   recvx_die "missing helper: $ROOT_PATCH_CLEANUP"
 
@@ -224,6 +227,9 @@ recvx_run python3 "$SDK_DB16_NOOP_HELPER" "$SDK_SOURCE"
 
 recvx_info "ensuring ReXGlue switch-trap CTR capture"
 recvx_run python3 "$SDK_SWITCH_TRAP_HELPER" "$SDK_SOURCE"
+
+recvx_info "enabling portable float parsing for Linux libc++"
+recvx_run python3 "$SDK_FLOAT_FROM_CHARS_HELPER" "$SDK_SOURCE"
 
 readonly SDK_PREFIX="$SDK_SOURCE/out/install/$RECVX_SDK_PRESET"
 
