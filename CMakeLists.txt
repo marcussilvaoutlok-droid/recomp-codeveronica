@@ -12,7 +12,10 @@ set(RECVX_SOURCES
     src/main.cpp
 )
 
-if(WIN32)
+if(ANDROID)
+    # Android loads native game code as a shared library; there is no desktop main().
+    add_library(recvx SHARED ${RECVX_SOURCES})
+elseif(WIN32)
     add_executable(recvx WIN32 ${RECVX_SOURCES})
 else()
     add_executable(recvx ${RECVX_SOURCES})
