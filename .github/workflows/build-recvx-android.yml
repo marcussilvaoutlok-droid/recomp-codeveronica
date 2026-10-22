@@ -113,67 +113,49 @@ jobs:
       - name: Keep code generation on the Linux host executable
         run: |
           set -euo pipefail
-          # The Android build also links a target named rexglue-host in RUNNER_TEMP.
-          # Keep the native host CLI at a distinct path and patch ONLY the
-          # code-generation command, never the linker output rule.
           HOST_CODEGEN="$RUNNER_TEMP/rexglue-host-linux"
+          OLD_CODEGEN="$RUNNER_TEMP/rexglue-host"
           test -x "$HOST_CODEGEN"
           file "$HOST_CODEGEN"
           "$HOST_CODEGEN" --version
           echo "HOST_CODEGEN=$HOST_CODEGEN" >> "$GITHUB_ENV"
 
-          python3 - "$HOST_CODEGEN" <<'PY'
+          # Ninja stores the generator invocation in one command line.
+          # Replace the executable path only on lines that actually invoke codegen.
+          python3 - "$HOST_CODEGEN" "$OLD_CODEGEN" <<'PY'
           from pathlib import Path
           import sys
 
-          host = sys.argv[1]
+          host, old = sys.argv[1:3]
           build = Path("out/build/android-arm64-release")
-          candidates = list(build.rglob("build.ninja"))
-          candidates += list(build.rglob("*.ninja"))
+          candidates = list(build.rglob("build.ninja")) + list(build.rglob("*.ninja"))
           changed = []
-          for path in candidates:
+          for path in dict.fromkeys(candidates):
               try:
                   lines = path.read_text().splitlines(keepends=True)
               except (UnicodeDecodeError, OSError):
                   continue
-              updated = []
-              inside_codegen = False
-              local_changes = 0
+              out = []
+              count = 0
               for line in lines:
-                  if "codegen" in line.lower() and ("CUSTOM_COMMAND" in line or "COMMAND =" in line or "codegen" in line):
-                      inside_codegen = True
-                  if inside_codegen and "rexglue" in line and (" codegen " in line or line.rstrip().endswith(" codegen")):
-                      import re
-                      line, n = re.subn(r"(?<![A-Za-z0-9_./-])(?:[^ \\\t]*?/)?rexglue(?:rd|d)?(?=\\s+codegen\\b)", host, line)
-                      local_changes += n
-                  updated.append(line)
-                  if inside_codegen and ("COMMAND_EXPAND_LISTS" in line or "DESC =" in line):
-                      inside_codegen = False
-              if local_changes:
-                  path.write_text("".join(updated))
-                  changed.append(f"{path} ({local_changes})")
+                  if "codegen" in line.lower() and "rexglue" in line and old in line:
+                      line = line.replace(old, host)
+                      count += 1
+                  out.append(line)
+              if count:
+                  path.write_text("".join(out))
+                  changed.append(f"{path} ({count})")
           if not changed:
-              # Ninja's generated rule can span a single command line without
-              # a CUSTOM_COMMAND marker; safely replace only lines invoking codegen.
-              import re
-              for path in candidates:
+              # Print candidate commands to make future diagnostics actionable.
+              for path in dict.fromkeys(candidates):
                   try:
-                      lines = path.read_text().splitlines(keepends=True)
-                  except (UnicodeDecodeError, OSError):
-                      continue
-                  updated = []
-                  count = 0
-                  for line in lines:
-                      if " codegen " in line and "rexglue" in line:
-                          line, n = re.subn(r"[^ \\\t]*rexglue(?:rd|d)?(?=\\s+codegen\\b)", host, line)
-                          count += n
-                      updated.append(line)
-                  if count:
-                      path.write_text("".join(updated))
-                      changed.append(f"{path} ({count})")
-          if not changed:
-              raise SystemExit("Could not locate the codegen command in Android Ninja rules")
-          print("Patched only codegen command:", ", ".join(changed))
+                      for number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+                          if "codegen" in line.lower() and "rexglue" in line:
+                              print(f"{path}:{number}:{line}")
+                  except OSError:
+                      pass
+              raise SystemExit("Could not replace the old host executable in a codegen command")
+          print("Updated codegen command:", ", ".join(changed))
           PY
           grep -R -n -F "$HOST_CODEGEN" out/build/android-arm64-release --include='build.ninja' --include='*.ninja'
       - name: Build Resident Evil Android ARM64 native library
