@@ -88,6 +88,17 @@ jobs:
           test -f generated/default/codegen.build.stamp
           test -f generated/default/recvx_init.h
 
+          # Save and validate the native Linux code generator BEFORE CMake
+          # configures the Android cross-build, which may reconfigure SDK targets.
+          SDK_REXGLUE="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/install/linux-amd64/bin/rexglue"
+          test -x "$SDK_REXGLUE"
+          "$SDK_REXGLUE" --version
+          HOST_REXGLUE="$RUNNER_TEMP/rexglue-host"
+          install -m 0755 "$SDK_REXGLUE" "$HOST_REXGLUE"
+          file "$HOST_REXGLUE"
+          "$HOST_REXGLUE" --version
+          echo "HOST_REXGLUE=$HOST_REXGLUE" >> "$GITHUB_ENV"
+
       - name: Configure Android ARM64 target
         run: |
           set -euo pipefail
@@ -102,15 +113,10 @@ jobs:
       - name: Keep code generation on the Linux host executable
         run: |
           set -euo pipefail
-          SDK_REXGLUE="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/install/linux-amd64/bin/rexglue"
-          test -x "$SDK_REXGLUE"
-          "$SDK_REXGLUE" --version
-
-          # Preserve a host executable outside the SDK build tree. The Android
-          # cross-build must never try to execute an ARM64 rexglue binary on x86_64.
-          HOST_REXGLUE="$RUNNER_TEMP/rexglue-host"
-          cp "$SDK_REXGLUE" "$HOST_REXGLUE"
-          chmod +x "$HOST_REXGLUE"
+          # Use the host binary saved before Android cross-configuration.
+          # Never copy rexglue from the SDK build tree after cross-configuration:
+          # that path may now contain an ARM64 executable that cannot run on x86_64.
+          test -x "$HOST_REXGLUE"
           file "$HOST_REXGLUE"
           "$HOST_REXGLUE" --version
 
