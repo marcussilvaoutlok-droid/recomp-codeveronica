@@ -23,3 +23,9 @@ else()
 endif()
 
 rexglue_setup_target(recvx GPU_PLUGINS xenos)
+
+# The public SDK headers include <imgui.h>; expose the vendored header directory
+# to consumer translation units, including Android cross-compilation.
+target_include_directories(recvx PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/.deps/rexglue-sdk/thirdparty/imgui"
+)
