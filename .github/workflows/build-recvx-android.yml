@@ -179,7 +179,7 @@ jobs:
           git clone --depth 1 --branch release-3.4.x https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/SDL"
           mkdir -p android-package
           cp -a "$RUNNER_TEMP/SDL/android-project/." android-package/
-          mkdir -p android-package/app/libs/arm64-v8a
+          mkdir -p android-package/app/src/main/jniLibs/arm64-v8a
           cp dist/android-arm64/librecvx.so android-package/app/libs/arm64-v8a/libmain.so
           SDL_LIB="$(find out/build/android-arm64-release "$RUNNER_TEMP/SDL" -type f -name 'libSDL3.so' -print -quit || true)"
           if [ -n "$SDL_LIB" ]; then
