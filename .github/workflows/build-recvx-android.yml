@@ -114,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           HOST_CODEGEN="$RUNNER_TEMP/rexglue-host-linux"
-          OLD_CODEGEN="$RUNNER_TEMP/rexglue-host"
+          OLD_CODEGEN="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/linux-arm64/rexglue"
           test -x "$HOST_CODEGEN"
           file "$HOST_CODEGEN"
           "$HOST_CODEGEN" --version
@@ -138,7 +138,7 @@ jobs:
               out = []
               count = 0
               for line in lines:
-                  if "codegen" in line.lower() and "rexglue" in line and old in line:
+                  if old in line and "codegen" in line.lower() and ("COMMAND =" in line or "command =" in line):
                       line = line.replace(old, host)
                       count += 1
                   out.append(line)
@@ -150,7 +150,7 @@ jobs:
               for path in dict.fromkeys(candidates):
                   try:
                       for number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
-                          if "codegen" in line.lower() and "rexglue" in line:
+                          if old in line and "codegen" in line.lower() and ("COMMAND =" in line or "command =" in line):
                               print(f"{path}:{number}:{line}")
                   except OSError:
                       pass
