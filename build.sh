@@ -16,6 +16,8 @@ readonly SDK_TIMERQUEUE_HELPER="$ROOT_DIR/scripts/ensure-rexglue-timerqueue-bloc
 readonly SDK_DISRUPTOR_HELPER="$ROOT_DIR/scripts/ensure-disruptorplus-blocking-wait-fix.py"
 readonly SDK_DB16_NOOP_HELPER="$ROOT_DIR/scripts/ensure-rexglue-db16cyc-noop.py"
 readonly SDK_SWITCH_TRAP_HELPER="$ROOT_DIR/scripts/ensure-rexglue-switch-trap-context.py"
+readonly SDK_FLOAT_FROM_CHARS_HELPER="$ROOT_DIR/scripts/ensure-rexglue-float-from-chars.py"
+readonly SDK_CHRONO_LIBCXX_HELPER="$ROOT_DIR/scripts/ensure-rexglue-chrono-libcxx.py"
 readonly ROOT_PATCH_CLEANUP="$ROOT_DIR/scripts/cleanup-obsolete-root-patches.sh"
 
 usage() {
@@ -188,11 +190,15 @@ recvx_verify_xex
   recvx_die "missing helper: $SDK_DB16_NOOP_HELPER"
 [[ -f "$SDK_SWITCH_TRAP_HELPER" ]] ||
   recvx_die "missing helper: $SDK_SWITCH_TRAP_HELPER"
+[[ -f "$SDK_FLOAT_FROM_CHARS_HELPER" ]] ||
+  recvx_die "missing helper: $SDK_FLOAT_FROM_CHARS_HELPER"
+[[ -f "$SDK_CHRONO_LIBCXX_HELPER" ]] ||
+  recvx_die "missing helper: $SDK_CHRONO_LIBCXX_HELPER"
 [[ -f "$ROOT_PATCH_CLEANUP" ]] ||
   recvx_die "missing helper: $ROOT_PATCH_CLEANUP"
 
 recvx_info "cleaning obsolete generated .patch files from project root"
-recvx_run "$ROOT_PATCH_CLEANUP"
+recvx_run bash "$ROOT_PATCH_CLEANUP"
 
 mkdir -p "$ROOT_DIR/.deps"
 
@@ -225,6 +231,12 @@ recvx_run python3 "$SDK_DB16_NOOP_HELPER" "$SDK_SOURCE"
 recvx_info "ensuring ReXGlue switch-trap CTR capture"
 recvx_run python3 "$SDK_SWITCH_TRAP_HELPER" "$SDK_SOURCE"
 
+recvx_info "enabling portable float parsing for Linux libc++"
+recvx_run python3 "$SDK_FLOAT_FROM_CHARS_HELPER" "$SDK_SOURCE"
+
+recvx_info "enabling chrono clock-cast compatibility for Linux libc++"
+recvx_run python3 "$SDK_CHRONO_LIBCXX_HELPER" "$SDK_SOURCE"
+
 readonly SDK_PREFIX="$SDK_SOURCE/out/install/$RECVX_SDK_PRESET"
 
 case "$BUILD_KIND" in
@@ -246,6 +258,7 @@ esac
 recvx_run cmake --preset "$RECVX_SDK_PRESET" -S "$SDK_SOURCE" \
   -DCMAKE_C_COMPILER:FILEPATH="$CLANG_C" \
   -DCMAKE_CXX_COMPILER:FILEPATH="$CLANG_CXX" \
+  -DCMAKE_CXX_FLAGS:STRING="${CXXFLAGS:-}" \
   -DREXGLUE_ENABLE_PERF_COUNTERS:BOOL="$RECVX_REXGLUE_PERF_COUNTERS"
 readonly SDK_BUILD_DIR="$SDK_SOURCE/out/build/$RECVX_SDK_PRESET"
 recvx_run cmake --build "$SDK_BUILD_DIR" \
@@ -369,6 +382,7 @@ recvx_info "host CMake CLI fix: $CMAKE_REXGLUE_CLI_FIX"
 declare -a configure_extra=(
   -DCMAKE_C_COMPILER:FILEPATH="$CLANG_C"
   -DCMAKE_CXX_COMPILER:FILEPATH="$CLANG_CXX"
+  -DCMAKE_CXX_FLAGS:STRING="${CXXFLAGS:-}"
   -DCMAKE_PREFIX_PATH:PATH="$SDK_PREFIX"
   -Drexglue_DIR:PATH="$(recvx_config_from_prefix "$SDK_PREFIX")"
   -DCMAKE_PROJECT_INCLUDE:FILEPATH="$CMAKE_REXGLUE_CLI_FIX"

@@ -1,0 +1,240 @@
+name: Build Resident Evil Code Veronica X (Android ARM64 native)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/build-from-private-xex-release
+    paths:
+      - ".github/workflows/build-recvx-android.yml"
+      - "build.sh"
+      - "scripts/**"
+      - "src/**"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "generated/**"
+      - "recvx_manifest.toml"
+      - "recvx_app.h"
+  pull_request:
+    paths:
+      - ".github/workflows/build-recvx-android.yml"
+      - "build.sh"
+      - "scripts/**"
+      - "src/**"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "generated/**"
+      - "recvx_manifest.toml"
+      - "recvx_app.h"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recvx-android-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android-arm64:
+    name: Generate and build Android ARM64 native library
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RECVX_BUILD_JOBS: "2"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install host build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget ca-certificates build-essential autoconf cmake ninja-build git python3 python3-pip python3-venv pkg-config curl jq unzip
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get install -y --no-install-recommends clang-21 lld-21 libc++-21-dev libc++abi-21-dev libvulkan-dev libx11-dev libx11-xcb-dev libxcb1-dev libwayland-dev libxkbcommon-dev libdecor-0-dev libasound2-dev libpulse-dev libpipewire-0.3-dev libgtk-3-dev libxss-dev
+
+      - name: Verify preinstalled Android NDK
+        run: |
+          set -euo pipefail
+          if [[ -z "${ANDROID_NDK_LATEST_HOME:-}" ]]; then
+            echo "::error::ANDROID_NDK_LATEST_HOME is not available on this runner."
+            exit 1
+          fi
+          test -f "$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "Using Android NDK at $ANDROID_NDK_LATEST_HOME"
+
+      - name: Download and verify private retail XEX
+        run: |
+          set -euo pipefail
+          mkdir -p game
+          gh release download recvx-xex-private --repo "$GITHUB_REPOSITORY" --pattern "Default.xex" --dir game
+          actual="$(sha256sum game/Default.xex | cut -d ' ' -f 1)"
+          expected="c552c6995462a5cefdd52c07bebd28fff4481164b19a445c636d7b54736f3c70"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Default.xex SHA-256 mismatch: $actual" >&2
+            exit 1
+          fi
+          python3 scripts/inspect-xex.py game/Default.xex
+
+      - name: Build host ReXGlue and generate game code
+        run: |
+          set -euo pipefail
+          CXXFLAGS="-stdlib=libc++ -std=c++23 -mssse3" bash build.sh --jobs 2
+          test -f generated/default/codegen.build.stamp
+          test -f generated/default/recvx_init.h
+
+          # Save and validate the native Linux code generator BEFORE CMake
+          # configures the Android cross-build, which may reconfigure SDK targets.
+          SDK_REXGLUE="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/install/linux-amd64/bin/rexglue"
+          test -x "$SDK_REXGLUE"
+          "$SDK_REXGLUE" --version
+          HOST_REXGLUE="$RUNNER_TEMP/rexglue-host-linux"
+          install -m 0755 "$SDK_REXGLUE" "$HOST_REXGLUE"
+          file "$HOST_REXGLUE"
+          "$HOST_REXGLUE" --version
+          echo "HOST_REXGLUE=$HOST_REXGLUE" >> "$GITHUB_ENV"
+
+      - name: Configure Android ARM64 target
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("CMakeLists.txt")
+          s = p.read_text()
+          line = 'target_compile_definitions(recvx PRIVATE REX_ANDROID_APP_IDENTIFIER="recvx")'
+          if line not in s:
+              anchor = 'rexglue_setup_target(recvx)'
+              if anchor not in s:
+                  raise SystemExit("Could not find rexglue_setup_target(recvx) in CMakeLists.txt")
+              s = s.replace(anchor, line + "\n" + anchor, 1)
+              p.write_text(s)
+          print("Android app identifier recvx configured.")
+          PY
+          cmake -S . -B out/build/android-arm64-release -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-26 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DREXSDK_DIR="$GITHUB_WORKSPACE/.deps/rexglue-sdk" \
+            -DREXGLUE_RECOMP_DEBUG_INFO=none
+
+      - name: Keep code generation on the Linux host executable
+        run: |
+          set -euo pipefail
+          HOST_CODEGEN="$RUNNER_TEMP/rexglue-host-linux"
+          OLD_CODEGEN="$GITHUB_WORKSPACE/.deps/rexglue-sdk/out/linux-arm64/rexglue"
+          test -x "$HOST_CODEGEN"
+          file "$HOST_CODEGEN"
+          "$HOST_CODEGEN" --version
+          echo "HOST_CODEGEN=$HOST_CODEGEN" >> "$GITHUB_ENV"
+
+          # Ninja stores the generator invocation in one command line.
+          # Replace the executable path only on lines that actually invoke codegen.
+          python3 - "$HOST_CODEGEN" "$OLD_CODEGEN" <<'PY'
+          from pathlib import Path
+          import sys
+
+          host, old = sys.argv[1:3]
+          build = Path("out/build/android-arm64-release")
+          candidates = list(build.rglob("build.ninja")) + list(build.rglob("*.ninja"))
+          changed = []
+          for path in dict.fromkeys(candidates):
+              try:
+                  lines = path.read_text().splitlines(keepends=True)
+              except (UnicodeDecodeError, OSError):
+                  continue
+              out = []
+              count = 0
+              for line in lines:
+                  if old in line and "codegen" in line.lower() and ("COMMAND =" in line or "command =" in line):
+                      line = line.replace(old, host)
+                      count += 1
+                  out.append(line)
+              if count:
+                  path.write_text("".join(out))
+                  changed.append(f"{path} ({count})")
+          if not changed:
+              # Print candidate commands to make future diagnostics actionable.
+              for path in dict.fromkeys(candidates):
+                  try:
+                      for number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+                          if old in line and "codegen" in line.lower() and ("COMMAND =" in line or "command =" in line):
+                              print(f"{path}:{number}:{line}")
+                  except OSError:
+                      pass
+              raise SystemExit("Could not replace the old host executable in a codegen command")
+          print("Updated codegen command:", ", ".join(changed))
+          PY
+          grep -R -n -F "$HOST_CODEGEN" out/build/android-arm64-release --include='build.ninja' --include='*.ninja'
+      - name: Build Resident Evil Android ARM64 native library
+        run: |
+          set -euo pipefail
+          cmake --build out/build/android-arm64-release --target recvx --parallel 2
+          LIB="$(find out/build/android-arm64-release -type f -name 'librecvx.so' -print -quit)"
+          test -n "$LIB"
+          test -s "$LIB"
+          mkdir -p dist/android-arm64
+          cp "$LIB" dist/android-arm64/
+          file "$LIB" | tee dist/android-arm64/file.txt
+          readelf -h "$LIB" | tee dist/android-arm64/elf-header.txt
+          readelf -d "$LIB" | tee dist/android-arm64/elf-dependencies.txt
+          readelf -h "$LIB" | grep -q 'Machine:.*AArch64'
+          cat > dist/android-arm64/README.txt <<'EOF'
+          Resident Evil Code: Veronica X ReXGlue Android ARM64 native shared library.
+          This .so is a native build artifact, not a standalone installable APK.
+          Android activity/SDL wrapper, runtime dependency packaging, and device gameplay validation remain separate milestones.
+          EOF
+
+      - name: Package Android APK with SDL3 activity
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch release-3.4.x https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/SDL"
+          mkdir -p android-package
+          cp -a "$RUNNER_TEMP/SDL/android-project/." android-package/
+          mkdir -p android-package/app/src/main/jniLibs/arm64-v8a
+          cp dist/android-arm64/librecvx.so android-package/app/src/main/jniLibs/arm64-v8a/libmain.so
+          SDL_LIB="$(find out/build/android-arm64-release "$RUNNER_TEMP/SDL" -type f -name 'libSDL3.so' -print -quit || true)"
+          if [ -n "$SDL_LIB" ]; then
+            cp "$SDL_LIB" android-package/app/src/main/jniLibs/arm64-v8a/libSDL3.so
+          elif readelf -d dist/android-arm64/librecvx.so | grep -q 'libSDL3.so'; then
+            echo "::error::librecvx.so requires libSDL3.so, but no SDL3 shared library was found."
+            exit 1
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("android-package/app/src/main/AndroidManifest.xml")
+          content = manifest.read_text()
+          old = 'android:label="@string/app_name"'
+          if old not in content:
+              raise SystemExit("Could not find the expected app label in AndroidManifest.xml")
+          manifest.write_text(content.replace(old, 'android:label="Resident Evil Code Veronica X"', 1))
+          PY
+          cd android-package
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug -PEXCLUDE_NATIVE_LIBS
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          mkdir -p ../dist/android-apk
+          cp "$APK" ../dist/android-apk/recvx-android-arm64-debug.apk
+          unzip -l ../dist/android-apk/recvx-android-arm64-debug.apk | grep -E 'lib/arm64-v8a/(libmain|libSDL3)\\.so'
+
+      - name: Upload installable Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: recvx-android-arm64-apk
+          path: dist/android-apk/recvx-android-arm64-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Android ARM64 native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: recvx-android-arm64-native
+          path: dist/android-arm64/
+          if-no-files-found: error
+          retention-days: 14
