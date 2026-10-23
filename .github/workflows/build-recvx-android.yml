@@ -111,7 +111,7 @@ jobs:
               anchor = 'rexglue_setup_target(recvx)'
               if anchor not in s:
                   raise SystemExit("Could not find rexglue_setup_target(recvx) in CMakeLists.txt")
-              s = s.replace(anchor, line + "\\n" + anchor, 1)
+              s = s.replace(anchor, line + "\n" + anchor, 1)
               p.write_text(s)
           print("Android app identifier recvx configured.")
           PY
