@@ -192,7 +192,15 @@ jobs:
             echo "::error::librecvx.so requires libSDL3.so, but no SDL3 shared library was found."
             exit 1
           fi
-          sed -i 's/android:label="@string\\/app_name"/android:label="Resident Evil Code Veronica X"/' android-package/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("android-package/app/src/main/AndroidManifest.xml")
+          content = manifest.read_text()
+          old = 'android:label="@string/app_name"'
+          if old not in content:
+              raise SystemExit("Could not find the expected app label in AndroidManifest.xml")
+          manifest.write_text(content.replace(old, 'android:label="Resident Evil Code Veronica X"', 1))
+          PY
           cd android-package
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug -PEXCLUDE_NATIVE_LIBS
