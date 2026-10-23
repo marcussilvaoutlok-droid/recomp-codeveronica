@@ -102,6 +102,19 @@ jobs:
       - name: Configure Android ARM64 target
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("CMakeLists.txt")
+          s = p.read_text()
+          line = 'target_compile_definitions(recvx PRIVATE REX_ANDROID_APP_IDENTIFIER="recvx")'
+          if line not in s:
+              anchor = 'rexglue_setup_target(recvx)'
+              if anchor not in s:
+                  raise SystemExit("Could not find rexglue_setup_target(recvx) in CMakeLists.txt")
+              s = s.replace(anchor, line + "\\n" + anchor, 1)
+              p.write_text(s)
+          print("Android app identifier recvx configured.")
+          PY
           cmake -S . -B out/build/android-arm64-release -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a \
